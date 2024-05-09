@@ -1,8 +1,12 @@
 # can-telemetry
 General purpose CAN telemetry tool written in Python 3 
 
-### Purpose of this Tool:
+## TODO:
+change where files are read from and extracted
+![img.png](img.png)
+They are currently read from the root. this needs to change according to our project structure
 
+### Purpose of this Tool:
 If any hardware runs CAN, this application should be able to simulate both the send and receive comms, down to the
 capability of running _signals-based-unit-tests_.
 
