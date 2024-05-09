@@ -1,101 +1,100 @@
-"""CAN bus connection class for bus management."""
+"""Notifier class and logic for handling custom dynamic Notifiers."""
 
+import sched
 import threading
+import time
+from typing import Callable
 
-import can
-
-from notifier_class import CustomNotifier
+from can import Message
 
 
-class CANBusManager:
+class CustomNotifier:
+    """CustomNotifier of dynamic notifier with listener management."""
+
     def __init__(
-        self,
-        channel: str = "virtual",
-        bus_type: str = "virtual",
-        filters: list[dict[str, int | bool]] = None,
+        self, listeners: list[Callable[[Message], None]] | None = None
     ):
-        """General CANBusManager initialization.
+        """CustomNotifier initialization function.
 
         Args:
-            channel: python.can.Bus() channel parameter.
-            bus_type: python.can.Bus() bus type parameter.
-            filters: python.can.Bus() filters parameter.
+            listeners: List of listener functions, default to None.
         """
-        self.__channel = channel
-        self.__bus_type = bus_type
-        self.__filters = filters  # List of CAN filter dictionaries
-        self.__notifier = CustomNotifier()
-        self.__running = False
-        self.__reader_thread = None  # Initialized later.
-        self.__bus = None  # Initialized later.
+        self.__listeners = listeners if listeners is not None else []
+        self.__lock = threading.Lock()
 
-    def is_running(self) -> bool:
-        """Get state of CAN bus.
-
-        Returns:
-            True for running, False for not running.
-        """
-        return self.__running
-
-    def start(self):
-        """Start the CAN bus."""
-        filter_print = (
-            "no filters"
-            if self.__filters is None
-            else f"filters {self.__filters}"
-        )
-        print(f"CANBusManager starting on {self.__bus} with {filter_print}.")
-
-        # Initialize the CAN bus.
-        self.__bus = can.interface.Bus(
-            channel=self.__channel,
-            bustype=self.__bus_type,
-            can_filters=self.__filters,
-        )
-
-        # Start the CAN reader in a daemon thread.
-        self.__reader_thread = threading.Thread(
-            target=self.can_reader, daemon=True
-        )
-        self.__reader_thread.start()
-        self.__running = True
-
-    def stop(self):
-        """Stop the CAN bus."""
-        if self.__running:
-            self.__running = False
-            self.__bus.shutdown()
-            print("CANBusManager stopped.")
-
-    def simulate(self, messages: list[can.Message]):
-        """Start the CAN bus and run simulated CAN bus messages.
+    def add_listener(self, new_listener: Callable[[Message], None]):
+        """Add a listener Callable to listener list.
 
         Args:
-            messages: Messages to simulate Rx.
-
-        Notes:
-            Messages are scheduled via timestamp.
+            new_listener: A Callable object to add to listeners list.
         """
-        # Start standard bus.
-        self.start()
-        print(f"CANBusManager Notifier simulation starting...")
+        with self.__lock:
+            self.__listeners.append(new_listener)
 
-        # Begin (threaded) notifier scheduled message simulation function.
-        self.__notifier.simulate(messages=messages)
-
-    def add_listener(self, listener):
-        """Add a listener Callable to Notifier.
+    def remove_listener(self, rem_listener: Callable[[Message], None]):
+        """Remove a listener Callable to listener list.
 
         Args:
-            listener: Listener to add to Notifier.
+            rem_listener: A Callable object to remove from listeners list.
         """
-        self.__notifier.add_listener(listener)
+        with self.__lock:
+            # Attempt to remove the listener if it exists in the list.
+            try:
+                self.__listeners.remove(rem_listener)
+            except ValueError:
+                print(f"Listener {rem_listener} not found.")
 
-    def can_reader(self):
-        """Read messages from the CAN bus and notify listeners."""
-        while self.__running:
-            msg = self.__bus.recv(timeout=1.0)
-            # TODO: A minium timeout is hardcoded here. A better solution might
-            #  be possible.
-            if msg:
-                self.__notifier.notify_listeners(msg)
+    def notify_listeners(self, msg: Message):
+        """Notify all listeners of a message.
+
+        Args:
+            msg: Message to notify listeners of.
+        """
+        with self.__lock:
+            for listener_func in self.__listeners:
+                listener_func(msg)
+
+    def simulate(self, messages: list[Message]):
+        """Simulate dynamic Notifier with messages scheduled via timestamp.
+
+        Args:
+            messages: Messages to schedule to send.
+
+        Examples:
+            >>> my_notifier = CustomNotifier([printer_listener])
+            >>> current_time = time.time()
+            >>> message_list = [ \
+                    Message( \
+                        arbitration_id=0x123, \
+                        data=b"\x01\x02\x03\x04", \
+                        timestamp=current_time + 2, \
+                    ), \
+                    Message( \
+                        arbitration_id=0x456, \
+                        data=b"\x05\x06\x07\x08", \
+                        timestamp=current_time + 4, \
+                    ), \
+                ]
+            >>> my_notifier.simulate(message_list)
+        """
+        scheduler = sched.scheduler(time.time, time.sleep)
+
+        for msg in messages:
+            # Schedule each message for sending, considering its timestamp.
+            delay = msg.timestamp - time.time()
+            if delay < 0:
+                delay = 0  # Immediate transmit if in the past.
+            scheduler.enter(delay, 1, self.notify_listeners, (msg,))
+
+        # Running the scheduler in a separate thread to allow dynamic listener.
+        scheduler_thread = threading.Thread(target=scheduler.run)
+        scheduler_thread.start()
+
+
+def printer_listener(msg: Message):
+    """Simple print message listener.
+
+    Args:
+        msg: Message to process.
+    """
+    print(str(msg))

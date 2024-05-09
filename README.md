@@ -3,7 +3,7 @@ General purpose CAN telemetry tool written in Python 3
 
 ## TODO:
 change where files are read from and extracted
-![img.png](img.png)
+![img.png](docs/img.png)
 They are currently read from the root. this needs to change according to our project structure
 
 ### Purpose of this Tool:
@@ -16,7 +16,10 @@ can_tool/
 │  
 ├── src/  
 │   ├── main.py                   # Main entry point for the application  
-│   ├── can_interface.py          # Module for handling CAN communication  
+│   ├── bus_types.py              # Module for the BusTypes enum
+│   ├── can_interface.py          # Module for handling CAN communication
+│   ├── can_manager.py            # Module for managing the CAN tool  
+│   ├── custom_notifier.py        # Module for CustomNotifier class
 │   ├── db_manager.py             # Module for SQLite-based storage and logging  
 │   ├── dbc_parser.py             # Module for DBC file parsing and message encoding/decoding  
 │   ├── config_manager.py         # Module for managing configurations (TOML)  
@@ -74,7 +77,14 @@ functionality of the vehicle's systems.
 ### What are Custom Dynamic Notifiers?
 Custom dynamic notifiers are a way to manage and notify listeners of events or messages in a flexible and customizable
 manner.
-This logic is handled 
+This logic is handled by custom_notifier.py. 
+The reason for the name is two-fold:
+> the term "custom" generally means that the notifier is designed to be flexible and adaptable to different
+> requirements. It allows developers to customize the behavior of the notifier by adding and removing listeners at
+> runtime, hence the term "dynamic." This customization enables the notifier to be tailored to specific use cases 
+> without needing to modify its core implementation.
+
+The CustomNotifier class serves a generic class that acts as the parent for the can manager in our app
 
 ``` plantuml
 @startuml
@@ -96,3 +106,34 @@ note right of CustomNotifier
 end note
 @enduml
 ```
+### Difference between the various can modules
+The `can_manager.py` and `can_interface.py` modules serve different purposes and have distinct roles in our application.
+Here's a breakdown of the differences in their goals, requirements, and roles:
+
+1. **can_manager.py**:
+
+   - **Goal**: The goal of `can_manager.py` is to manage and orchestrate the overall functionality of your CAN tool. It serves as a higher-level manager that coordinates the interaction between different components of your application, such as the `CanInterface`, `CustomNotifier`, and other modules.
+   
+   - **Requirements**: `can_manager.py` should be able to send and receive CAN message, manage listeners for received messages, handle configuration and settings, and coordinate the overall behavior of the CAN tool.
+   
+   - **Roles**:
+     - Manages the `CanInterface` for sending and receiving CAN message.
+     - Manages the `CustomNotifier` for notifying listeners of received messages.
+     - Handles configuration loading and management.
+     - Coordinates the overall behavior of the CAN tool, including message parsing, logging, and diagnostic testing.
+
+2. **can_interface.py**:
+
+   - **Goal**: The goal of `can_interface.py` is to provide an interface for interacting with the CAN bus. It handles the low-level communication details, such as sending and receiving CAN message, managing the CAN bus interface, and handling errors and exceptions.
+   
+   - **Requirements**: `can_interface.py` should be able to initialize the CAN bus interface, send and receive CAN message, handle errors and exceptions related to CAN communication, and provide a simple interface for other modules to interact with the CAN bus.
+   
+   - **Roles**:
+     - Initializes and manages the CAN bus interface.
+     - Sends CAN message over the CAN bus.
+     - Receives CAN message from the CAN bus.
+     - Handles errors and exceptions related to CAN communication.
+
+### Maintenance tasks
+- regularly review and update our requirements.txt file to incorporate bug fixes and security updates while
+ensuring compatibility with our codebase

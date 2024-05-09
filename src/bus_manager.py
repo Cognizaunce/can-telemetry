@@ -4,10 +4,10 @@ import threading
 
 import can
 
-from notifier_class import CustomNotifier
+from custom_notifier import CustomNotifier
 
 
-class CANBusManager:
+class BusManager:
     def __init__(
         self,
         channel: str = "virtual",
